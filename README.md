@@ -2,6 +2,10 @@
 
 App moderno e minimalista de gestão financeira pessoal com design fintech. Controle receitas, despesas, orçamentos e metas de economia com uma interface simples e intuitiva.
 
+## 🔐 Login e sincronização
+
+O app agora tem login com email/senha via Supabase, com dados sincronizados entre dispositivos. **Antes de rodar ou publicar o projeto, siga o guia `CONFIGURAR_LOGIN_SUPABASE.md`** — leva uns 10 minutos e é obrigatório (o app não funciona sem isso configurado).
+
 ## 📱 Instalação no iPhone
 
 O FinanceIA é uma Progressive Web App (PWA) que funciona como app nativo no seu iPhone.

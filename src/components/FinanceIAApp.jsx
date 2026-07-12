@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Home,
   Receipt,
@@ -16,22 +16,17 @@ import {
   Pencil,
   Wallet,
   Target,
-  Car,
-  ShoppingBag,
-  Utensils,
-  Laptop,
-  Heart,
-  Ticket,
   MoreHorizontal,
-  Banknote,
-  Fingerprint,
   X,
   Check,
   ChevronRight,
   ChevronLeft,
   Info,
+  Fingerprint,
+  LogOut,
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { useFinanceData } from "../hooks/useFinanceData";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -53,18 +48,6 @@ const palette = {
   darkMuted: "#8CA096",
 };
 
-const CATEGORIES_SEED = [
-  { id: "alimentacao", name: "Alimentação", icon: Utensils, color: "#D98B3F", budget: 800, kind: "expense" },
-  { id: "transporte", name: "Transporte", icon: Car, color: "#3F7FBF", budget: 350, kind: "expense" },
-  { id: "moradia", name: "Moradia", icon: Home, color: "#8B5FBF", budget: 1700, kind: "expense" },
-  { id: "lazer", name: "Lazer", icon: Ticket, color: "#BF3F7F", budget: 300, kind: "expense" },
-  { id: "saude", name: "Saúde", icon: Heart, color: "#3FA8BF", budget: 250, kind: "expense" },
-  { id: "compras", name: "Compras", icon: ShoppingBag, color: "#5F6FBF", budget: 400, kind: "expense" },
-  { id: "outros", name: "Outros", icon: MoreHorizontal, color: "#8A94A6", budget: 150, kind: "expense" },
-  { id: "salario", name: "Salário", icon: Banknote, color: "#2F9E6E", kind: "income" },
-  { id: "freelance", name: "Freelance", icon: Laptop, color: "#4FBF8F", kind: "income" },
-];
-
 const TABS = [
   { key: "home", label: "Início", icon: Home },
   { key: "transactions", label: "Transações", icon: Receipt },
@@ -74,14 +57,8 @@ const TABS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Data / date helpers
+// Date helpers
 // ---------------------------------------------------------------------------
-function daysAgo(n) {
-  const d = new Date();
-  d.setHours(9, 0, 0, 0);
-  d.setDate(d.getDate() - n);
-  return d;
-}
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -94,79 +71,6 @@ function isSameMonth(a, b) {
 function monthLabel(d) {
   const raw = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
-const RECENT_DEFS = [
-  [0, "expense", 34.9, "alimentacao", "iFood - almoço"],
-  [0, "expense", 18, "transporte", "Uber"],
-  [1, "expense", 220.5, "compras", "Loja de roupas"],
-  [2, "expense", 89.9, "lazer", "Cinema + pipoca"],
-  [3, "income", 850, "freelance", "Freela - landing page"],
-  [4, "expense", 45, "saude", "Farmácia"],
-  [5, "income", 4200, "salario", "Salário"],
-  [5, "expense", 312.4, "alimentacao", "Supermercado"],
-  [6, "expense", 120, "transporte", "Combustível"],
-  [7, "expense", 39.9, "lazer", "Netflix"],
-  [8, "expense", 15.9, "lazer", "Spotify"],
-  [9, "expense", 64.3, "alimentacao", "Restaurante"],
-  [10, "expense", 1400, "moradia", "Aluguel"],
-  [11, "expense", 95, "moradia", "Internet"],
-  [14, "expense", 130, "saude", "Academia - mensalidade"],
-];
-
-const MONTHLY_PATTERN = [
-  { day: 5, type: "income", amount: 4200, categoryId: "salario", description: "Salário" },
-  { day: 4, type: "expense", amount: 310, categoryId: "alimentacao", description: "Supermercado" },
-  { day: 10, type: "expense", amount: 1400, categoryId: "moradia", description: "Aluguel" },
-  { day: 11, type: "expense", amount: 95, categoryId: "moradia", description: "Internet" },
-  { day: 7, type: "expense", amount: 39.9, categoryId: "lazer", description: "Netflix" },
-  { day: 8, type: "expense", amount: 15.9, categoryId: "lazer", description: "Spotify" },
-  { day: 14, type: "expense", amount: 130, categoryId: "saude", description: "Academia - mensalidade" },
-  { day: 16, type: "expense", amount: 28, categoryId: "transporte", description: "Uber" },
-  { day: 20, type: "expense", amount: 60, categoryId: "alimentacao", description: "Feira" },
-];
-
-const EXTRA_PAST_DEFS = [
-  { monthsBack: 1, day: 12, type: "expense", amount: 220.5, categoryId: "compras", description: "Loja de roupas" },
-  { monthsBack: 2, day: 25, type: "expense", amount: 89.9, categoryId: "lazer", description: "Cinema + pipoca" },
-  { monthsBack: 3, day: 18, type: "income", amount: 850, categoryId: "freelance", description: "Freela - landing page" },
-  { monthsBack: 4, day: 22, type: "expense", amount: 210, categoryId: "compras", description: "Tênis novo" },
-];
-
-function buildSeedTransactions() {
-  const now = new Date();
-  const list = [];
-  let counter = 0;
-
-  RECENT_DEFS.forEach(([offset, type, amount, categoryId, description]) => {
-    list.push({ id: `seed-${counter++}`, date: daysAgo(offset), type, amount, categoryId, description });
-  });
-
-  for (let m = 1; m <= 5; m++) {
-    MONTHLY_PATTERN.forEach((p) => {
-      list.push({
-        id: `seed-${counter++}`,
-        date: new Date(now.getFullYear(), now.getMonth() - m, p.day, 9, 0, 0),
-        type: p.type,
-        amount: p.amount,
-        categoryId: p.categoryId,
-        description: p.description,
-      });
-    });
-  }
-
-  EXTRA_PAST_DEFS.forEach((p) => {
-    list.push({
-      id: `seed-${counter++}`,
-      date: new Date(now.getFullYear(), now.getMonth() - p.monthsBack, p.day, 9, 0, 0),
-      type: p.type,
-      amount: p.amount,
-      categoryId: p.categoryId,
-      description: p.description,
-    });
-  });
-
-  return list;
 }
 
 function buildMonthlyHistory(transactions) {
@@ -416,7 +320,7 @@ function HomeScreen({ balance, incomeMonth, expenseMonth, trendPct, expenseByCat
       <div className="flex items-center justify-between mt-2 mb-4">
         <div>
           <h1 className="text-lg font-semibold" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
-            {greeting}, Guilherme
+            {greeting}
           </h1>
           <p className="text-xs capitalize" style={{ color: T.muted }}>{dateStr}</p>
         </div>
@@ -659,12 +563,15 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
             </div>
           );
         })}
+        {goals.length === 0 && (
+          <p className="text-sm text-center py-6" style={{ color: T.muted }}>Nenhuma meta cadastrada ainda.</p>
+        )}
       </div>
     </div>
   );
 }
 
-function Row({ icon: Icon, label, children, T, border, onClick }) {
+function Row({ icon: Icon, label, children, T, border, onClick, danger }) {
   return (
     <div
       onClick={onClick}
@@ -672,8 +579,8 @@ function Row({ icon: Icon, label, children, T, border, onClick }) {
       style={{ borderColor: T.border, cursor: onClick ? "pointer" : "default" }}
     >
       <div className="flex items-center gap-3">
-        <Icon size={17} style={{ color: T.muted }} />
-        <span className="text-sm" style={{ color: T.text }}>{label}</span>
+        <Icon size={17} style={{ color: danger ? palette.expense : T.muted }} />
+        <span className="text-sm" style={{ color: danger ? palette.expense : T.text }}>{label}</span>
       </div>
       {children}
     </div>
@@ -691,23 +598,24 @@ function Switch({ checked, onChange }) {
   );
 }
 
-function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onExport }) {
+function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onExport, userEmail, onLogout }) {
+  const initial = (userEmail || "U").charAt(0).toUpperCase();
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 mt-2">
         <div
-          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold text-white"
+          className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold text-white shrink-0"
           style={{ backgroundColor: palette.primary, fontFamily: "Space Grotesk, sans-serif" }}
         >
-          G
+          {initial}
         </div>
-        <div>
-          <p className="text-sm font-semibold" style={{ color: T.text }}>Guilherme</p>
-          <p className="text-xs" style={{ color: T.muted }}>guilherme@email.com</p>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold" style={{ color: T.text }}>Minha conta</p>
+          <p className="text-xs truncate" style={{ color: T.muted }}>{userEmail}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
+      <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
         <Row icon={darkMode ? Moon : Sun} label="Modo escuro" T={T}>
           <Switch checked={darkMode} onChange={() => setDarkMode((v) => !v)} />
         </Row>
@@ -724,6 +632,10 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
           <ChevronRight size={16} style={{ color: T.muted }} />
         </Row>
       </div>
+
+      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
+        <Row icon={LogOut} label="Sair da conta" T={T} onClick={onLogout} danger />
+      </div>
     </div>
   );
 }
@@ -735,11 +647,12 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
   const [description, setDescription] = useState("");
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 10));
   const [recurring, setRecurring] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const filteredCats = categories.filter((c) => c.kind === type);
   const amount = cents / 100;
   const accent = type === "income" ? palette.income : palette.expense;
-  const canSave = amount > 0 && !!categoryId;
+  const canSave = amount > 0 && !!categoryId && !saving;
 
   function pressDigit(d) {
     setCents((prev) => {
@@ -753,15 +666,17 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
       return str === "" ? 0 : Number(str);
     });
   }
-  function handleSave() {
+  async function handleSave() {
     if (!canSave) return;
-    onSave({
+    setSaving(true);
+    await onSave({
       type,
       amount,
       categoryId,
       description: description.trim() || categories.find((c) => c.id === categoryId)?.name || "Transação",
       date: new Date(dateStr + "T12:00:00"),
     });
+    setSaving(false);
   }
 
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "back"];
@@ -856,7 +771,7 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
           className="w-full py-3 rounded-xl text-sm font-semibold text-white"
           style={{ backgroundColor: accent, opacity: canSave ? 1 : 0.4 }}
         >
-          Salvar
+          {saving ? "Salvando..." : "Salvar"}
         </button>
       </div>
     </div>
@@ -866,13 +781,19 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
 // ---------------------------------------------------------------------------
 // Root app
 // ---------------------------------------------------------------------------
-export default function FinanceIAApp() {
-  const [transactions, setTransactions] = useState(buildSeedTransactions);
-  const [categories, setCategories] = useState(CATEGORIES_SEED);
-  const [goals, setGoals] = useState([
-    { id: "g1", name: "Viagem Nordeste", target: 3000, current: 1180 },
-    { id: "g2", name: "Reserva de emergência", target: 10000, current: 5400 },
-  ]);
+export default function FinanceIAApp({ userId, userEmail, onLogout }) {
+  const {
+    categories,
+    transactions,
+    goals,
+    loading: dataLoading,
+    error: dataError,
+    addTransaction,
+    deleteTransaction,
+    updateBudget,
+    addToGoal,
+  } = useFinanceData(userId);
+
   const [darkMode, setDarkMode] = useState(false);
   const [biometric, setBiometric] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
@@ -881,7 +802,6 @@ export default function FinanceIAApp() {
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
   const [toast, setToast] = useState(null);
   const [mounted, setMounted] = useState(false);
-  const idCounter = useRef(1000);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
@@ -957,24 +877,39 @@ export default function FinanceIAApp() {
     setShowAdd(true);
   }
 
-  function handleAddTransaction(txn) {
-    idCounter.current += 1;
-    setTransactions((prev) => [{ ...txn, id: `t-${idCounter.current}` }, ...prev]);
-    setShowAdd(false);
-    showToast("Transação adicionada");
+  async function handleAddTransaction(txn) {
+    try {
+      await addTransaction(txn);
+      setShowAdd(false);
+      showToast("Transação adicionada");
+    } catch (e) {
+      showToast("Erro ao salvar. Tente novamente.");
+    }
   }
 
-  function handleDelete(id) {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  async function handleDelete(id) {
+    try {
+      await deleteTransaction(id);
+    } catch (e) {
+      showToast("Erro ao excluir. Tente novamente.");
+    }
   }
 
-  function handleUpdateBudget(categoryId, value) {
-    setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, budget: value } : c)));
+  async function handleUpdateBudget(categoryId, value) {
+    try {
+      await updateBudget(categoryId, value);
+    } catch (e) {
+      showToast("Erro ao atualizar orçamento.");
+    }
   }
 
-  function handleAddToGoal(id) {
-    setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, current: Math.min(g.target, g.current + 100) } : g)));
-    showToast("R$ 100 adicionados à meta");
+  async function handleAddToGoal(id) {
+    try {
+      await addToGoal(id);
+      showToast("R$ 100 adicionados à meta");
+    } catch (e) {
+      showToast("Erro ao atualizar meta.");
+    }
   }
 
   function handleExport() {
@@ -1030,45 +965,67 @@ export default function FinanceIAApp() {
         )}
 
         <div className="flex-1 overflow-y-auto px-4 pb-2">
-          {activeTab === "home" && (
-            <HomeScreen
-              balance={balance}
-              incomeMonth={incomeMonth}
-              expenseMonth={expenseMonth}
-              trendPct={trendPct}
-              expenseByCategory={expenseByCategory}
-              monthlyHistory={monthlyHistory}
-              recentTransactions={recentTransactions}
-              categoryMap={categoryMap}
-              T={T}
-              onSeeAll={() => setActiveTab("transactions")}
-              onBell={() => showToast("Nenhuma notificação nova")}
-              onOpenAdd={openAdd}
-            />
-          )}
-          {activeTab === "transactions" && (
-            <TransactionsScreen
-              transactions={transactions}
-              categoryMap={categoryMap}
-              T={T}
-              darkMode={darkMode}
-              onDelete={handleDelete}
-              selectedMonth={selectedMonth}
-            />
-          )}
-          {activeTab === "reports" && (
-            <ReportsScreen
-              expenseByCategory={expenseByCategory}
-              T={T}
-              darkMode={darkMode}
-              onUpdateBudget={handleUpdateBudget}
-              goals={goals}
-              onAddToGoal={handleAddToGoal}
-              selectedMonth={selectedMonth}
-            />
-          )}
-          {activeTab === "profile" && (
-            <ProfileScreen T={T} darkMode={darkMode} setDarkMode={setDarkMode} biometric={biometric} setBiometric={setBiometric} onExport={handleExport} />
+          {dataLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-sm" style={{ color: T.muted }}>Carregando seus dados...</p>
+            </div>
+          ) : dataError ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4">
+              <p className="text-sm font-medium" style={{ color: palette.expense }}>Não foi possível carregar seus dados.</p>
+              <p className="text-xs" style={{ color: T.muted }}>{dataError}</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === "home" && (
+                <HomeScreen
+                  balance={balance}
+                  incomeMonth={incomeMonth}
+                  expenseMonth={expenseMonth}
+                  trendPct={trendPct}
+                  expenseByCategory={expenseByCategory}
+                  monthlyHistory={monthlyHistory}
+                  recentTransactions={recentTransactions}
+                  categoryMap={categoryMap}
+                  T={T}
+                  onSeeAll={() => setActiveTab("transactions")}
+                  onBell={() => showToast("Nenhuma notificação nova")}
+                  onOpenAdd={openAdd}
+                />
+              )}
+              {activeTab === "transactions" && (
+                <TransactionsScreen
+                  transactions={transactions}
+                  categoryMap={categoryMap}
+                  T={T}
+                  darkMode={darkMode}
+                  onDelete={handleDelete}
+                  selectedMonth={selectedMonth}
+                />
+              )}
+              {activeTab === "reports" && (
+                <ReportsScreen
+                  expenseByCategory={expenseByCategory}
+                  T={T}
+                  darkMode={darkMode}
+                  onUpdateBudget={handleUpdateBudget}
+                  goals={goals}
+                  onAddToGoal={handleAddToGoal}
+                  selectedMonth={selectedMonth}
+                />
+              )}
+              {activeTab === "profile" && (
+                <ProfileScreen
+                  T={T}
+                  darkMode={darkMode}
+                  setDarkMode={setDarkMode}
+                  biometric={biometric}
+                  setBiometric={setBiometric}
+                  onExport={handleExport}
+                  userEmail={userEmail}
+                  onLogout={onLogout}
+                />
+              )}
+            </>
           )}
         </div>
 
