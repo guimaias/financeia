@@ -16,17 +16,22 @@ import {
   Pencil,
   Wallet,
   Target,
-  MoreHorizontal,
+  Fingerprint,
   X,
   Check,
   ChevronRight,
   ChevronLeft,
   Info,
-  Fingerprint,
+  Eye,
+  EyeOff,
   LogOut,
+  Briefcase,
+  Loader2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { useAuth } from "../hooks/useAuth";
 import { useFinanceData } from "../hooks/useFinanceData";
+import { iconFor } from "../lib/categoryIcons";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -57,7 +62,7 @@ const TABS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Date helpers
+// Date / format helpers
 // ---------------------------------------------------------------------------
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -76,9 +81,7 @@ function monthLabel(d) {
 function buildMonthlyHistory(transactions) {
   const now = new Date();
   const months = [];
-  for (let m = 5; m >= 0; m--) {
-    months.push(new Date(now.getFullYear(), now.getMonth() - m, 1));
-  }
+  for (let m = 5; m >= 0; m--) months.push(new Date(now.getFullYear(), now.getMonth() - m, 1));
   return months.map((d) => {
     const monthTx = transactions.filter((t) => isSameMonth(t.date, d));
     const income = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
@@ -104,12 +107,17 @@ function dateLabel(date) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
+function mask(text, on) {
+  return on ? "••••" : text;
+}
+
 // ---------------------------------------------------------------------------
 // Small building blocks
 // ---------------------------------------------------------------------------
 function Sparkline({ data, color }) {
   if (!data || data.length < 2) return null;
-  const w = 88, h = 32;
+  const w = 88,
+    h = 32;
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
@@ -152,7 +160,36 @@ function MonthSwitcher({ selectedMonth, onPrev, onNext, disableNext, T }) {
   );
 }
 
-function BalanceCard({ balance, income, expense, trend, trendPct }) {
+function WalletSwitcher({ activeKind, onSwitch, T, switching }) {
+  const options = [
+    { kind: "PF", label: "Pessoal", Icon: Wallet },
+    { kind: "PJ", label: "Empresa", Icon: Briefcase },
+  ];
+  return (
+    <div className="flex rounded-full p-0.5 shrink-0" style={{ backgroundColor: T.bg, border: `1px solid ${T.border}` }}>
+      {options.map(({ kind, label, Icon }) => {
+        const active = activeKind === kind;
+        return (
+          <button
+            key={kind}
+            disabled={switching}
+            onClick={() => onSwitch(kind)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: active ? palette.primary : "transparent",
+              color: active ? "#ffffff" : T.muted,
+              opacity: switching ? 0.6 : 1,
+            }}
+          >
+            <Icon size={12} /> {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function BalanceCard({ balance, income, expense, trend, trendPct, privacy, onEdit }) {
   return (
     <div
       className="rounded-3xl p-5 relative overflow-hidden mb-5"
@@ -163,14 +200,21 @@ function BalanceCard({ balance, income, expense, trend, trendPct }) {
         style={{ backgroundImage: "radial-gradient(circle, #ffffff 1px, transparent 1px)", backgroundSize: "14px 14px" }}
       />
       <div className="relative">
-        <p className="text-xs uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.7)" }}>Saldo disponível</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.7)" }}>
+            Saldo disponível
+          </p>
+          <button onClick={onEdit} className="p-0.5 rounded" aria-label="Ajustar saldo inicial">
+            <Pencil size={11} style={{ color: "rgba(255,255,255,0.65)" }} />
+          </button>
+        </div>
         <div className="flex items-end justify-between mt-1">
           <h1 className="text-3xl font-bold" style={{ fontFamily: "Space Grotesk, sans-serif", color: "#ffffff" }}>
-            {formatBRL(balance)}
+            {mask(formatBRL(balance), privacy)}
           </h1>
-          <Sparkline data={trend} color="#ffffff" />
+          {!privacy && <Sparkline data={trend} color="#ffffff" />}
         </div>
-        {trendPct !== null && (
+        {trendPct !== null && !privacy && (
           <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: "#BFE8D6" }}>
             {trendPct >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
             <span>{Math.abs(trendPct)}% vs mês anterior</span>
@@ -179,15 +223,19 @@ function BalanceCard({ balance, income, expense, trend, trendPct }) {
         <div className="h-px my-4" style={{ backgroundColor: "rgba(255,255,255,0.15)" }} />
         <div className="flex justify-between">
           <div>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Receitas (mês)</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+              Receitas (mês)
+            </p>
             <p className="text-sm font-semibold text-white flex items-center gap-1">
-              <ArrowUpRight size={14} /> {formatBRL(income)}
+              <ArrowUpRight size={14} /> {mask(formatBRL(income), privacy)}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Despesas (mês)</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+              Despesas (mês)
+            </p>
             <p className="text-sm font-semibold text-white flex items-center gap-1 justify-end">
-              <ArrowDownRight size={14} /> {formatBRL(expense)}
+              <ArrowDownRight size={14} /> {mask(formatBRL(expense), privacy)}
             </p>
           </div>
         </div>
@@ -196,11 +244,16 @@ function BalanceCard({ balance, income, expense, trend, trendPct }) {
   );
 }
 
-function CategoryDonut({ data, total, T }) {
+function CategoryDonut({ data, total, T, privacy }) {
   return (
     <div className="rounded-2xl p-4 mb-5" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
-      <p className="text-sm font-semibold mb-3" style={{ color: T.text }}>Gastos por categoria</p>
-      <div className="flex items-center gap-4">
+      <p className="text-sm font-semibold mb-3" style={{ color: T.text }}>
+        Gastos por categoria
+      </p>
+      <div
+        className="flex items-center gap-4"
+        style={privacy ? { filter: "blur(7px)", userSelect: "none", pointerEvents: "none" } : undefined}
+      >
         <div style={{ width: 120, height: 120 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -231,11 +284,13 @@ function CategoryDonut({ data, total, T }) {
   );
 }
 
-function MonthlyBarChart({ data, T }) {
+function MonthlyBarChart({ data, T, privacy }) {
   return (
     <div className="rounded-2xl p-4 mb-5" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
-      <p className="text-sm font-semibold mb-3" style={{ color: T.text }}>Receitas x despesas (6 meses)</p>
-      <div style={{ width: "100%", height: 140 }}>
+      <p className="text-sm font-semibold mb-3" style={{ color: T.text }}>
+        Receitas x despesas (6 meses)
+      </p>
+      <div style={{ width: "100%", height: 140, ...(privacy ? { filter: "blur(7px)", userSelect: "none", pointerEvents: "none" } : {}) }}>
         <ResponsiveContainer>
           <BarChart data={data} barGap={2}>
             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: T.muted }} />
@@ -249,8 +304,8 @@ function MonthlyBarChart({ data, T }) {
   );
 }
 
-function TransactionRow({ t, category, T, onDelete }) {
-  const Icon = category?.icon || MoreHorizontal;
+function TransactionRow({ t, category, T, onDelete, privacy }) {
+  const Icon = category?.icon;
   const isIncome = t.type === "income";
   return (
     <div className="flex items-center gap-3 py-2.5">
@@ -258,20 +313,27 @@ function TransactionRow({ t, category, T, onDelete }) {
         className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
         style={{ backgroundColor: `${category?.color || "#999999"}22` }}
       >
-        <Icon size={18} style={{ color: category?.color || "#999999" }} />
+        {Icon ? <Icon size={18} style={{ color: category?.color || "#999999" }} /> : null}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: T.text }}>{t.description}</p>
-        <p className="text-xs" style={{ color: T.muted }}>{category?.name || "Outros"}</p>
+        <p className="text-sm font-medium truncate" style={{ color: T.text }}>
+          {t.description}
+        </p>
+        <p className="text-xs" style={{ color: T.muted }}>
+          {category?.name || "Outros"}
+        </p>
       </div>
       <div className="text-right">
         <p
           className="text-sm font-semibold"
           style={{ fontFamily: "IBM Plex Mono, monospace", color: isIncome ? palette.income : palette.expense }}
         >
-          {isIncome ? "+ " : "− "}{formatBRL(t.amount)}
+          {isIncome ? "+ " : "− "}
+          {mask(formatBRL(t.amount), privacy)}
         </p>
-        <p className="text-xs" style={{ color: T.muted }}>{dateLabel(t.date)}</p>
+        <p className="text-xs" style={{ color: T.muted }}>
+          {dateLabel(t.date)}
+        </p>
       </div>
       {onDelete && (
         <button onClick={() => onDelete(t.id)} className="ml-1 p-1">
@@ -294,7 +356,7 @@ function CategoryChip({ category, selected, onClick }) {
       }}
     >
       <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: `${category.color}22` }}>
-        <Icon size={16} style={{ color: category.color }} />
+        {Icon ? <Icon size={16} style={{ color: category.color }} /> : null}
       </div>
       <span className="text-xs font-medium" style={{ color: selected ? category.color : "#8A8A8A" }}>
         {category.name}
@@ -306,7 +368,22 @@ function CategoryChip({ category, selected, onClick }) {
 // ---------------------------------------------------------------------------
 // Screens
 // ---------------------------------------------------------------------------
-function HomeScreen({ balance, incomeMonth, expenseMonth, trendPct, expenseByCategory, monthlyHistory, recentTransactions, categoryMap, T, onSeeAll, onBell, onOpenAdd }) {
+function HomeScreen({
+  userLabel,
+  balance,
+  incomeMonth,
+  expenseMonth,
+  trendPct,
+  expenseByCategory,
+  monthlyHistory,
+  recentTransactions,
+  categoryMap,
+  T,
+  privacy,
+  onSeeAll,
+  onOpenAdd,
+  onEditBalance,
+}) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
@@ -317,21 +394,14 @@ function HomeScreen({ balance, incomeMonth, expenseMonth, trendPct, expenseByCat
 
   return (
     <div>
-      <div className="flex items-center justify-between mt-2 mb-4">
-        <div>
-          <h1 className="text-lg font-semibold" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
-            {greeting}
-          </h1>
-          <p className="text-xs capitalize" style={{ color: T.muted }}>{dateStr}</p>
-        </div>
-        <button
-          onClick={onBell}
-          className="w-9 h-9 rounded-full flex items-center justify-center relative"
-          style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
-        >
-          <Bell size={16} style={{ color: T.muted }} />
-          <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: palette.expense }} />
-        </button>
+      <div className="mt-2 mb-4">
+        <h1 className="text-lg font-semibold" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
+          {greeting}
+          {userLabel ? `, ${userLabel}` : ""}
+        </h1>
+        <p className="text-xs capitalize" style={{ color: T.muted }}>
+          {dateStr}
+        </p>
       </div>
 
       <div className="flex gap-2 mb-4">
@@ -351,31 +421,43 @@ function HomeScreen({ balance, incomeMonth, expenseMonth, trendPct, expenseByCat
         </button>
       </div>
 
-      <BalanceCard balance={balance} income={incomeMonth} expense={expenseMonth} trend={trendData} trendPct={trendPct} />
+      <BalanceCard
+        balance={balance}
+        income={incomeMonth}
+        expense={expenseMonth}
+        trend={trendData}
+        trendPct={trendPct}
+        privacy={privacy}
+        onEdit={onEditBalance}
+      />
 
-      {donutData.length > 0 && <CategoryDonut data={donutData} total={totalSpent} T={T} />}
+      {donutData.length > 0 && <CategoryDonut data={donutData} total={totalSpent} T={T} privacy={privacy} />}
 
-      <MonthlyBarChart data={monthlyHistory} T={T} />
+      <MonthlyBarChart data={monthlyHistory} T={T} privacy={privacy} />
 
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-semibold" style={{ color: T.text }}>Últimas transações</p>
+        <p className="text-sm font-semibold" style={{ color: T.text }}>
+          Últimas transações
+        </p>
         <button onClick={onSeeAll} className="text-xs font-medium" style={{ color: palette.primary }}>
           Ver todas
         </button>
       </div>
       <div>
         {recentTransactions.length === 0 && (
-          <p className="text-sm text-center py-6" style={{ color: T.muted }}>Nenhuma transação neste mês.</p>
+          <p className="text-sm text-center py-6" style={{ color: T.muted }}>
+            Nenhuma transação neste mês.
+          </p>
         )}
         {recentTransactions.map((t) => (
-          <TransactionRow key={t.id} t={t} category={categoryMap[t.categoryId]} T={T} />
+          <TransactionRow key={t.id} t={t} category={categoryMap[t.categoryId]} T={T} privacy={privacy} />
         ))}
       </div>
     </div>
   );
 }
 
-function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, selectedMonth }) {
+function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, selectedMonth, privacy }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [allTime, setAllTime] = useState(false);
@@ -421,7 +503,11 @@ function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, 
       </div>
 
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {[["all", "Todas"], ["income", "Receitas"], ["expense", "Despesas"]].map(([k, label]) => (
+        {[
+          ["all", "Todas"],
+          ["income", "Receitas"],
+          ["expense", "Despesas"],
+        ].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTypeFilter(k)}
@@ -449,15 +535,19 @@ function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, 
       </div>
 
       {groups.length === 0 && (
-        <p className="text-sm text-center py-10" style={{ color: T.muted }}>Nenhuma transação encontrada.</p>
+        <p className="text-sm text-center py-10" style={{ color: T.muted }}>
+          Nenhuma transação encontrada.
+        </p>
       )}
 
       {groups.map(([label, items]) => (
         <div key={label} className="mb-2">
-          <p className="text-xs font-medium mt-3 mb-1" style={{ color: T.muted }}>{label}</p>
+          <p className="text-xs font-medium mt-3 mb-1" style={{ color: T.muted }}>
+            {label}
+          </p>
           <div>
             {items.map((t) => (
-              <TransactionRow key={t.id} t={t} category={categoryMap[t.categoryId]} T={T} onDelete={onDelete} />
+              <TransactionRow key={t.id} t={t} category={categoryMap[t.categoryId]} T={T} onDelete={onDelete} privacy={privacy} />
             ))}
           </div>
         </div>
@@ -466,7 +556,7 @@ function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, 
   );
 }
 
-function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, onAddToGoal, selectedMonth }) {
+function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, onAddToGoal, selectedMonth, privacy, onOpenAddGoal }) {
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
 
@@ -475,7 +565,9 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
       <h2 className="text-lg font-semibold mb-1" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
         Orçamentos
       </h2>
-      <p className="text-xs mb-4" style={{ color: T.muted }}>Progresso de {monthLabel(selectedMonth)}</p>
+      <p className="text-xs mb-4" style={{ color: T.muted }}>
+        Progresso de {monthLabel(selectedMonth)}
+      </p>
 
       <div className="space-y-3 mb-6">
         {expenseByCategory.map((c) => {
@@ -487,9 +579,11 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: `${c.color}22` }}>
-                    <Icon size={15} style={{ color: c.color }} />
+                    {Icon ? <Icon size={15} style={{ color: c.color }} /> : null}
                   </div>
-                  <span className="text-sm font-medium" style={{ color: T.text }}>{c.name}</span>
+                  <span className="text-sm font-medium" style={{ color: T.text }}>
+                    {c.name}
+                  </span>
                 </div>
                 {editing === c.id ? (
                   <div className="flex items-center gap-1">
@@ -521,7 +615,9 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
                 )}
               </div>
               <div className="flex justify-between text-xs mb-1" style={{ color: T.muted }}>
-                <span>{formatBRL(c.spent)} de {formatBRL(c.budget)}</span>
+                <span>
+                  {mask(formatBRL(c.spent), privacy)} de {mask(formatBRL(c.budget), privacy)}
+                </span>
                 <span>{pct}%</span>
               </div>
               <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: darkMode ? "#2A342E" : "#E4E7E1" }}>
@@ -530,20 +626,41 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
             </div>
           );
         })}
+        {expenseByCategory.length === 0 && (
+          <p className="text-sm text-center py-6" style={{ color: T.muted }}>
+            Nenhuma categoria de despesa ainda.
+          </p>
+        )}
       </div>
 
-      <h2 className="text-lg font-semibold mb-3" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
-        Metas de economia
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold" style={{ color: T.text, fontFamily: "Space Grotesk, sans-serif" }}>
+          Metas de economia
+        </h2>
+        <button
+          onClick={onOpenAddGoal}
+          className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+          style={{ backgroundColor: `${palette.gold}18`, color: palette.gold, border: `1px solid ${palette.gold}40` }}
+        >
+          <Plus size={13} /> Adicionar meta
+        </button>
+      </div>
       <div className="space-y-3">
+        {goals.length === 0 && (
+          <p className="text-sm text-center py-6" style={{ color: T.muted }}>
+            Nenhuma meta ainda. Crie a primeira!
+          </p>
+        )}
         {goals.map((g) => {
-          const pct = Math.min(100, Math.round((g.current / g.target) * 100));
+          const pct = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
           return (
             <div key={g.id} className="rounded-2xl p-3" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <Target size={16} style={{ color: palette.gold }} />
-                  <span className="text-sm font-medium" style={{ color: T.text }}>{g.name}</span>
+                  <span className="text-sm font-medium" style={{ color: T.text }}>
+                    {g.name}
+                  </span>
                 </div>
                 <button
                   onClick={() => onAddToGoal(g.id)}
@@ -554,7 +671,9 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
                 </button>
               </div>
               <div className="flex justify-between text-xs mb-1" style={{ color: T.muted }}>
-                <span>{formatBRL(g.current)} de {formatBRL(g.target)}</span>
+                <span>
+                  {mask(formatBRL(g.current), privacy)} de {mask(formatBRL(g.target), privacy)}
+                </span>
                 <span>{pct}%</span>
               </div>
               <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: darkMode ? "#2A342E" : "#E4E7E1" }}>
@@ -563,15 +682,12 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
             </div>
           );
         })}
-        {goals.length === 0 && (
-          <p className="text-sm text-center py-6" style={{ color: T.muted }}>Nenhuma meta cadastrada ainda.</p>
-        )}
       </div>
     </div>
   );
 }
 
-function Row({ icon: Icon, label, children, T, border, onClick, danger }) {
+function Row({ icon: Icon, label, children, T, border, onClick }) {
   return (
     <div
       onClick={onClick}
@@ -579,8 +695,10 @@ function Row({ icon: Icon, label, children, T, border, onClick, danger }) {
       style={{ borderColor: T.border, cursor: onClick ? "pointer" : "default" }}
     >
       <div className="flex items-center gap-3">
-        <Icon size={17} style={{ color: danger ? palette.expense : T.muted }} />
-        <span className="text-sm" style={{ color: danger ? palette.expense : T.text }}>{label}</span>
+        <Icon size={17} style={{ color: T.muted }} />
+        <span className="text-sm" style={{ color: T.text }}>
+          {label}
+        </span>
       </div>
       {children}
     </div>
@@ -599,7 +717,7 @@ function Switch({ checked, onChange }) {
 }
 
 function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onExport, userEmail, onLogout }) {
-  const initial = (userEmail || "U").charAt(0).toUpperCase();
+  const initial = (userEmail || "?").charAt(0).toUpperCase();
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 mt-2">
@@ -610,12 +728,13 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
           {initial}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold" style={{ color: T.text }}>Minha conta</p>
-          <p className="text-xs truncate" style={{ color: T.muted }}>{userEmail}</p>
+          <p className="text-sm font-semibold truncate" style={{ color: T.text }}>
+            {userEmail}
+          </p>
         </div>
       </div>
 
-      <div className="rounded-2xl overflow-hidden mb-4" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
         <Row icon={darkMode ? Moon : Sun} label="Modo escuro" T={T}>
           <Switch checked={darkMode} onChange={() => setDarkMode((v) => !v)} />
         </Row>
@@ -623,7 +742,9 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
           <Switch checked={biometric} onChange={() => setBiometric((v) => !v)} />
         </Row>
         <Row icon={Wallet} label="Moeda" T={T} border>
-          <span className="text-xs" style={{ color: T.muted }}>Real (R$)</span>
+          <span className="text-xs" style={{ color: T.muted }}>
+            Real (R$)
+          </span>
         </Row>
         <Row icon={Download} label="Exportar dados (CSV)" T={T} border onClick={onExport}>
           <ChevronRight size={16} style={{ color: T.muted }} />
@@ -633,9 +754,22 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
         </Row>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
-        <Row icon={LogOut} label="Sair da conta" T={T} onClick={onLogout} danger />
-      </div>
+      <button
+        onClick={onLogout}
+        className="w-full flex items-center justify-center gap-2 mt-5 py-3 rounded-xl text-sm font-semibold"
+        style={{ color: palette.expense, backgroundColor: `${palette.expense}12`, border: `1px solid ${palette.expense}30` }}
+      >
+        <LogOut size={16} /> Sair da conta
+      </button>
+    </div>
+  );
+}
+
+function ModalShell({ children, onClose }) {
+  return (
+    <div className="absolute inset-0 z-30 flex items-end md:items-center md:justify-center">
+      <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.5)" }} onClick={onClose} />
+      {children}
     </div>
   );
 }
@@ -675,6 +809,7 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
       categoryId,
       description: description.trim() || categories.find((c) => c.id === categoryId)?.name || "Transação",
       date: new Date(dateStr + "T12:00:00"),
+      recurring,
     });
     setSaving(false);
   }
@@ -682,11 +817,12 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "back"];
 
   return (
-    <div className="absolute inset-0 z-30 flex items-end">
-      <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.5)" }} onClick={onClose} />
-      <div className="relative w-full rounded-t-3xl p-5 overflow-y-auto" style={{ backgroundColor: T.card, maxHeight: "88%" }}>
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl p-5 overflow-y-auto" style={{ backgroundColor: T.card, maxHeight: "88%" }}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold" style={{ color: T.text }}>Nova transação</h2>
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Nova transação
+          </h2>
           <button onClick={onClose}>
             <X size={20} style={{ color: T.muted }} />
           </button>
@@ -717,11 +853,18 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
           </p>
         </div>
 
-        <p className="text-xs font-medium mb-2" style={{ color: T.muted }}>Categoria</p>
+        <p className="text-xs font-medium mb-2" style={{ color: T.muted }}>
+          Categoria
+        </p>
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
           {filteredCats.map((c) => (
             <CategoryChip key={c.id} category={c} selected={categoryId === c.id} onClick={() => setCategoryId(c.id)} />
           ))}
+          {filteredCats.length === 0 && (
+            <p className="text-xs" style={{ color: T.muted }}>
+              Nenhuma categoria de {type === "income" ? "receita" : "despesa"} ainda.
+            </p>
+          )}
         </div>
 
         <input
@@ -768,40 +911,160 @@ function AddSheet({ categories, T, darkMode, onClose, onSave, initialType }) {
 
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded-xl text-sm font-semibold text-white"
-          style={{ backgroundColor: accent, opacity: canSave ? 1 : 0.4 }}
+          disabled={!canSave}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: accent, opacity: amount > 0 && categoryId ? 1 : 0.4 }}
         >
-          {saving ? "Salvando..." : "Salvar"}
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Salvar
         </button>
       </div>
-    </div>
+    </ModalShell>
+  );
+}
+
+function EditBalanceModal({ T, darkMode, currentValue, onClose, onSave }) {
+  const [value, setValue] = useState(String(currentValue ?? 0));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(Number(String(value).replace(",", ".")) || 0);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-3xl p-5" style={{ backgroundColor: T.card }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Ajustar saldo inicial
+          </h2>
+          <button onClick={onClose}>
+            <X size={20} style={{ color: T.muted }} />
+          </button>
+        </div>
+        <p className="text-xs mb-3" style={{ color: T.muted }}>
+          Esse valor é somado às receitas e despesas registradas para calcular o saldo disponível desta carteira.
+        </p>
+        <input
+          type="number"
+          step="0.01"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoFocus
+          className="w-full mb-4 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: palette.primary, opacity: saving ? 0.7 : 1 }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Salvar
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function AddGoalModal({ T, darkMode, onClose, onSave }) {
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [saving, setSaving] = useState(false);
+  const canSave = name.trim().length > 0 && Number(target) > 0 && !saving;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    await onSave(name.trim(), Number(target));
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-3xl p-5" style={{ backgroundColor: T.card }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Nova meta de economia
+          </h2>
+          <button onClick={onClose}>
+            <X size={20} style={{ color: T.muted }} />
+          </button>
+        </div>
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Nome da meta
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ex: Viagem, Reserva de emergência"
+          className="w-full mb-3 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Valor alvo (R$)
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          placeholder="0,00"
+          className="w-full mb-4 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <button
+          onClick={handleSave}
+          disabled={!canSave}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: palette.gold, opacity: name.trim() && Number(target) > 0 ? 1 : 0.5 }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Criar meta
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Root app
 // ---------------------------------------------------------------------------
-export default function FinanceIAApp({ userId, userEmail, onLogout }) {
+export default function FinanceIAApp() {
+  const { user, signOut } = useAuth();
   const {
+    activeWallet,
     categories,
     transactions,
     goals,
-    loading: dataLoading,
-    error: dataError,
+    loading,
+    error,
+    switchWallet,
     addTransaction,
     deleteTransaction,
-    updateBudget,
+    updateCategoryBudget,
+    addGoal,
     addToGoal,
-  } = useFinanceData(userId);
+    updateInitialBalance,
+  } = useFinanceData(user);
 
   const [darkMode, setDarkMode] = useState(false);
   const [biometric, setBiometric] = useState(true);
+  const [privacyMode, setPrivacyMode] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const [showAdd, setShowAdd] = useState(false);
   const [addInitialType, setAddInitialType] = useState("expense");
+  const [showEditBalance, setShowEditBalance] = useState(false);
+  const [showAddGoal, setShowAddGoal] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
   const [toast, setToast] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [switchingWallet, setSwitchingWallet] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50);
@@ -809,20 +1072,12 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
   }, []);
 
   const monthlyHistory = useMemo(() => buildMonthlyHistory(transactions), [transactions]);
-
-  const monthTransactions = useMemo(
-    () => transactions.filter((t) => isSameMonth(t.date, selectedMonth)),
-    [transactions, selectedMonth]
-  );
-
+  const monthTransactions = useMemo(() => transactions.filter((t) => isSameMonth(t.date, selectedMonth)), [transactions, selectedMonth]);
   const incomeMonth = useMemo(() => monthTransactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0), [monthTransactions]);
   const expenseMonth = useMemo(() => monthTransactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0), [monthTransactions]);
 
   const prevMonthDate = useMemo(() => addMonths(selectedMonth, -1), [selectedMonth]);
-  const prevMonthTransactions = useMemo(
-    () => transactions.filter((t) => isSameMonth(t.date, prevMonthDate)),
-    [transactions, prevMonthDate]
-  );
+  const prevMonthTransactions = useMemo(() => transactions.filter((t) => isSameMonth(t.date, prevMonthDate)), [transactions, prevMonthDate]);
   const prevNet = useMemo(
     () => prevMonthTransactions.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0),
     [prevMonthTransactions]
@@ -835,10 +1090,11 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
 
   const balance = useMemo(() => {
     const end = addMonths(selectedMonth, 1);
-    return transactions.filter((t) => t.date < end).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
-  }, [transactions, selectedMonth]);
+    const net = transactions.filter((t) => t.date < end).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+    return (activeWallet?.initial_balance || 0) + net;
+  }, [transactions, selectedMonth, activeWallet]);
 
-  const categoryMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
+  const categoryMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, { ...c, icon: iconFor(c.icon_key) }])), [categories]);
 
   const expenseByCategory = useMemo(() => {
     const spentMap = {};
@@ -849,13 +1105,13 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
       });
     return categories
       .filter((c) => c.kind === "expense")
-      .map((c) => ({ ...c, spent: spentMap[c.id] || 0 }))
+      .map((c) => ({ ...c, icon: iconFor(c.icon_key), spent: spentMap[c.id] || 0 }))
       .sort((a, b) => b.spent - a.spent);
   }, [monthTransactions, categories]);
 
   const recentTransactions = useMemo(() => [...monthTransactions].sort((a, b) => b.date - a.date).slice(0, 4), [monthTransactions]);
-
   const isCurrentMonth = isSameMonth(selectedMonth, new Date());
+  const hasAlert = useMemo(() => expenseByCategory.some((c) => c.budget > 0 && c.spent >= c.budget * 0.9), [expenseByCategory]);
 
   const T = darkMode
     ? { bg: palette.darkBg, card: palette.darkCard, border: palette.darkBorder, text: "#F2F5F3", muted: palette.darkMuted }
@@ -878,37 +1134,51 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
   }
 
   async function handleAddTransaction(txn) {
-    try {
-      await addTransaction(txn);
-      setShowAdd(false);
-      showToast("Transação adicionada");
-    } catch (e) {
-      showToast("Erro ao salvar. Tente novamente.");
-    }
+    await addTransaction(txn);
+    setShowAdd(false);
+    showToast("Transação adicionada");
   }
 
   async function handleDelete(id) {
-    try {
-      await deleteTransaction(id);
-    } catch (e) {
-      showToast("Erro ao excluir. Tente novamente.");
-    }
+    await deleteTransaction(id);
   }
 
   async function handleUpdateBudget(categoryId, value) {
-    try {
-      await updateBudget(categoryId, value);
-    } catch (e) {
-      showToast("Erro ao atualizar orçamento.");
-    }
+    await updateCategoryBudget(categoryId, value);
   }
 
   async function handleAddToGoal(id) {
-    try {
-      await addToGoal(id);
-      showToast("R$ 100 adicionados à meta");
-    } catch (e) {
-      showToast("Erro ao atualizar meta.");
+    await addToGoal(id, 100);
+    showToast("R$ 100 adicionados à meta");
+  }
+
+  async function handleAddGoal(name, target) {
+    await addGoal(name, target);
+    showToast("Meta criada");
+  }
+
+  async function handleEditBalance(value) {
+    await updateInitialBalance(value);
+    showToast("Saldo inicial atualizado");
+  }
+
+  async function handleSwitchWallet(kind) {
+    if (activeWallet?.kind === kind || switchingWallet) return;
+    setSwitchingWallet(true);
+    await switchWallet(kind);
+    setSwitchingWallet(false);
+    showToast(kind === "PJ" ? "Carteira Empresa ativa" : "Carteira Pessoal ativa");
+  }
+
+  function handleBell() {
+    if (hasAlert) {
+      const names = expenseByCategory
+        .filter((c) => c.budget > 0 && c.spent >= c.budget * 0.9)
+        .map((c) => c.name)
+        .join(", ");
+      showToast(`Perto do limite: ${names}`);
+    } else {
+      showToast("Nenhuma notificação nova");
     }
   }
 
@@ -933,103 +1203,174 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
     showToast("CSV exportado");
   }
 
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center p-6" style={{ backgroundColor: darkMode ? "#090D0B" : "#E7EAE4" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');`}</style>
-      <div
-        className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl flex flex-col relative"
-        style={{
-          backgroundColor: T.bg,
-          border: `8px solid ${darkMode ? "#000000" : "#161616"}`,
-          height: 820,
-          fontFamily: "Inter, sans-serif",
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? "translateY(0)" : "translateY(12px)",
-          transition: "opacity .5s ease, transform .5s ease",
-        }}
-      >
-        <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-5 rounded-b-2xl z-20"
-          style={{ backgroundColor: darkMode ? "#000000" : "#161616" }}
-        />
+  const userLabel = user?.email ? user.email.split("@")[0] : "";
 
-        <div className="shrink-0 flex items-center justify-between px-6 pt-3 pb-1 text-xs font-semibold" style={{ color: T.text }}>
-          <span>9:41</span>
-          <span style={{ letterSpacing: 2 }}>••••</span>
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: T.bg }}>
+        <div className="flex items-center gap-2 text-sm" style={{ color: T.muted }}>
+          <Loader2 size={16} className="animate-spin" /> Carregando seus dados…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="min-h-screen w-full flex"
+      style={{ backgroundColor: T.bg, opacity: mounted ? 1 : 0, transition: "opacity .4s ease", fontFamily: "Inter, sans-serif" }}
+    >
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');`}</style>
+
+      {/* Sidebar - desktop apenas */}
+      <aside className="hidden md:flex md:flex-col md:w-60 md:shrink-0 border-r px-4 py-6" style={{ backgroundColor: T.card, borderColor: T.border }}>
+        <div className="flex items-center gap-2 mb-8 px-2">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold"
+            style={{ background: `linear-gradient(135deg, ${palette.primary}, ${palette.primaryDeep})`, fontFamily: "Space Grotesk, sans-serif" }}
+          >
+            F
+          </div>
+          <span className="text-base font-semibold" style={{ fontFamily: "Space Grotesk, sans-serif", color: T.text }}>
+            FinanceIA
+          </span>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {TABS.filter((t) => t.key !== "add").map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium"
+                style={{ backgroundColor: active ? `${palette.primary}14` : "transparent", color: active ? palette.primary : T.muted }}
+              >
+                <Icon size={18} /> {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <button
+          onClick={() => openAdd("expense")}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white mb-2 mt-4"
+          style={{ backgroundColor: palette.primary }}
+        >
+          <Plus size={16} /> Nova transação
+        </button>
+        <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium" style={{ color: T.muted }}>
+          <LogOut size={16} /> Sair
+        </button>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b shrink-0" style={{ borderColor: T.border, backgroundColor: T.card }}>
+          <div className="flex items-center gap-2 md:hidden">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
+              style={{ background: `linear-gradient(135deg, ${palette.primary}, ${palette.primaryDeep})`, fontFamily: "Space Grotesk, sans-serif" }}
+            >
+              F
+            </div>
+          </div>
+          <WalletSwitcher activeKind={activeWallet?.kind} onSwitch={handleSwitchWallet} T={T} switching={switchingWallet} />
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={() => setPrivacyMode((v) => !v)}
+              className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: T.bg, border: `1px solid ${T.border}` }}
+              aria-label="Modo privacidade"
+            >
+              {privacyMode ? <EyeOff size={16} style={{ color: T.muted }} /> : <Eye size={16} style={{ color: T.muted }} />}
+            </button>
+            {activeTab !== "profile" && (
+              <button
+                onClick={handleBell}
+                className="w-9 h-9 rounded-full flex items-center justify-center relative"
+                style={{ backgroundColor: T.bg, border: `1px solid ${T.border}` }}
+              >
+                <Bell size={16} style={{ color: T.muted }} />
+                {hasAlert && <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: palette.expense }} />}
+              </button>
+            )}
+          </div>
         </div>
 
         {activeTab !== "profile" && (
-          <div className="shrink-0 px-4 pt-1">
-            <MonthSwitcher selectedMonth={selectedMonth} onPrev={goPrevMonth} onNext={goNextMonth} disableNext={isCurrentMonth} T={T} />
+          <div className="px-4 md:px-8 pt-3 shrink-0">
+            <div className="max-w-3xl mx-auto w-full">
+              <MonthSwitcher selectedMonth={selectedMonth} onPrev={goPrevMonth} onNext={goNextMonth} disableNext={isCurrentMonth} T={T} />
+            </div>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-4 pb-2">
-          {dataLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-sm" style={{ color: T.muted }}>Carregando seus dados...</p>
-            </div>
-          ) : dataError ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4">
-              <p className="text-sm font-medium" style={{ color: palette.expense }}>Não foi possível carregar seus dados.</p>
-              <p className="text-xs" style={{ color: T.muted }}>{dataError}</p>
-            </div>
-          ) : (
-            <>
-              {activeTab === "home" && (
-                <HomeScreen
-                  balance={balance}
-                  incomeMonth={incomeMonth}
-                  expenseMonth={expenseMonth}
-                  trendPct={trendPct}
-                  expenseByCategory={expenseByCategory}
-                  monthlyHistory={monthlyHistory}
-                  recentTransactions={recentTransactions}
-                  categoryMap={categoryMap}
-                  T={T}
-                  onSeeAll={() => setActiveTab("transactions")}
-                  onBell={() => showToast("Nenhuma notificação nova")}
-                  onOpenAdd={openAdd}
-                />
-              )}
-              {activeTab === "transactions" && (
-                <TransactionsScreen
-                  transactions={transactions}
-                  categoryMap={categoryMap}
-                  T={T}
-                  darkMode={darkMode}
-                  onDelete={handleDelete}
-                  selectedMonth={selectedMonth}
-                />
-              )}
-              {activeTab === "reports" && (
-                <ReportsScreen
-                  expenseByCategory={expenseByCategory}
-                  T={T}
-                  darkMode={darkMode}
-                  onUpdateBudget={handleUpdateBudget}
-                  goals={goals}
-                  onAddToGoal={handleAddToGoal}
-                  selectedMonth={selectedMonth}
-                />
-              )}
-              {activeTab === "profile" && (
-                <ProfileScreen
-                  T={T}
-                  darkMode={darkMode}
-                  setDarkMode={setDarkMode}
-                  biometric={biometric}
-                  setBiometric={setBiometric}
-                  onExport={handleExport}
-                  userEmail={userEmail}
-                  onLogout={onLogout}
-                />
-              )}
-            </>
-          )}
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 pb-24 md:pb-8">
+          <div className="max-w-3xl mx-auto w-full">
+            {activeTab === "home" && (
+              <HomeScreen
+                userLabel={userLabel}
+                balance={balance}
+                incomeMonth={incomeMonth}
+                expenseMonth={expenseMonth}
+                trendPct={trendPct}
+                expenseByCategory={expenseByCategory}
+                monthlyHistory={monthlyHistory}
+                recentTransactions={recentTransactions}
+                categoryMap={categoryMap}
+                T={T}
+                privacy={privacyMode}
+                onSeeAll={() => setActiveTab("transactions")}
+                onOpenAdd={openAdd}
+                onEditBalance={() => setShowEditBalance(true)}
+              />
+            )}
+            {activeTab === "transactions" && (
+              <TransactionsScreen
+                transactions={transactions}
+                categoryMap={categoryMap}
+                T={T}
+                darkMode={darkMode}
+                onDelete={handleDelete}
+                selectedMonth={selectedMonth}
+                privacy={privacyMode}
+              />
+            )}
+            {activeTab === "reports" && (
+              <ReportsScreen
+                expenseByCategory={expenseByCategory}
+                T={T}
+                darkMode={darkMode}
+                onUpdateBudget={handleUpdateBudget}
+                goals={goals}
+                onAddToGoal={handleAddToGoal}
+                selectedMonth={selectedMonth}
+                privacy={privacyMode}
+                onOpenAddGoal={() => setShowAddGoal(true)}
+              />
+            )}
+            {activeTab === "profile" && (
+              <ProfileScreen
+                T={T}
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                biometric={biometric}
+                setBiometric={setBiometric}
+                onExport={handleExport}
+                userEmail={user?.email}
+                onLogout={signOut}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="shrink-0 flex items-center justify-around py-2 border-t" style={{ backgroundColor: T.card, borderColor: T.border }}>
+        {/* Navegação inferior - mobile apenas */}
+        <div
+          className="md:hidden fixed bottom-0 left-0 right-0 flex items-center justify-around py-2 border-t z-20"
+          style={{ backgroundColor: T.card, borderColor: T.border }}
+        >
           {TABS.map((tab) => {
             if (tab.key === "add") {
               return (
@@ -1037,7 +1378,9 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
                   <span className="w-10 h-10 rounded-full flex items-center justify-center -mt-4 shadow-lg" style={{ backgroundColor: palette.primary }}>
                     <Plus size={20} color="#ffffff" />
                   </span>
-                  <span className="text-xs font-medium" style={{ color: palette.primary }}>{tab.label}</span>
+                  <span className="text-xs font-medium" style={{ color: palette.primary }}>
+                    {tab.label}
+                  </span>
                 </button>
               );
             }
@@ -1046,7 +1389,9 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)} className="flex flex-col items-center gap-0.5 px-2 py-1">
                 <Icon size={20} style={{ color: active ? palette.primary : T.muted }} />
-                <span className="text-xs" style={{ color: active ? palette.primary : T.muted }}>{tab.label}</span>
+                <span className="text-xs" style={{ color: active ? palette.primary : T.muted }}>
+                  {tab.label}
+                </span>
               </button>
             );
           })}
@@ -1054,7 +1399,7 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
 
         {showAdd && (
           <AddSheet
-            categories={categories}
+            categories={categories.map((c) => ({ ...c, icon: iconFor(c.icon_key) }))}
             T={T}
             darkMode={darkMode}
             initialType={addInitialType}
@@ -1062,13 +1407,32 @@ export default function FinanceIAApp({ userId, userEmail, onLogout }) {
             onSave={handleAddTransaction}
           />
         )}
+        {showEditBalance && (
+          <EditBalanceModal
+            T={T}
+            darkMode={darkMode}
+            currentValue={activeWallet?.initial_balance || 0}
+            onClose={() => setShowEditBalance(false)}
+            onSave={handleEditBalance}
+          />
+        )}
+        {showAddGoal && <AddGoalModal T={T} darkMode={darkMode} onClose={() => setShowAddGoal(false)} onSave={handleAddGoal} />}
 
         {toast && (
           <div
-            className="absolute left-1/2 -translate-x-1/2 bottom-24 z-40 px-4 py-2 rounded-full text-xs font-medium text-white shadow-lg"
+            className="absolute left-1/2 -translate-x-1/2 bottom-24 md:bottom-8 z-40 px-4 py-2 rounded-full text-xs font-medium text-white shadow-lg whitespace-nowrap"
             style={{ backgroundColor: palette.ink }}
           >
             {toast}
+          </div>
+        )}
+
+        {error && (
+          <div
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full text-xs font-medium text-white shadow-lg"
+            style={{ backgroundColor: palette.expense }}
+          >
+            {error.message || "Erro ao sincronizar dados"}
           </div>
         )}
       </div>

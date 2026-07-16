@@ -1,25 +1,30 @@
-import { useAuth } from './hooks/useAuth'
-import AuthScreen from './components/AuthScreen'
-import FinanceIAApp from './components/FinanceIAApp'
+import { AuthProvider, useAuth } from "./hooks/useAuth";
+import LoginScreen from "./components/LoginScreen";
+import ResetPasswordScreen from "./components/ResetPasswordScreen";
+import FinanceIAApp from "./components/FinanceIAApp";
 
-export default function App() {
-  const { user, loading, signOut } = useAuth()
+function Gate() {
+  const { loading, user, passwordRecovery } = useAuth();
 
   if (loading) {
     return (
-      <div className="w-screen h-screen flex items-center justify-center" style={{ backgroundColor: '#E7EAE4' }}>
-        <p style={{ color: '#6B7A72', fontFamily: 'Inter, sans-serif' }}>Carregando...</p>
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#F3F5F1" }}>
+        <p className="text-sm" style={{ color: "#6B7A72" }}>
+          Carregando…
+        </p>
       </div>
-    )
+    );
   }
 
-  if (!user) {
-    return <AuthScreen />
-  }
+  if (passwordRecovery) return <ResetPasswordScreen />;
+  if (!user) return <LoginScreen />;
+  return <FinanceIAApp />;
+}
 
+export default function App() {
   return (
-    <div className="w-screen h-screen flex items-center justify-center p-4">
-      <FinanceIAApp userId={user.id} userEmail={user.email} onLogout={signOut} />
-    </div>
-  )
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
+  );
 }
