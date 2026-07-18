@@ -29,9 +29,9 @@ function friendlyError(message) {
   return message;
 }
 
-export default function LoginScreen() {
+export default function LoginScreen({ initialMode = "login" }) {
   const { signIn, signUp, sendPasswordReset } = useAuth();
-  const [mode, setMode] = useState("login"); // 'login' | 'signup' | 'forgot'
+  const [mode, setMode] = useState(initialMode); // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

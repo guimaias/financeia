@@ -707,17 +707,21 @@ function Row({ icon: Icon, label, children, T, border, onClick }) {
 
 function Switch({ checked, onChange }) {
   return (
-    <button onClick={onChange} className="w-10 h-6 rounded-full relative transition-colors" style={{ backgroundColor: checked ? palette.primary : "#C7CCC8" }}>
+    <button
+      onClick={onChange}
+      className="w-11 h-6 rounded-full relative shrink-0 overflow-hidden transition-colors"
+      style={{ backgroundColor: checked ? palette.primary : "#C7CCC8" }}
+    >
       <span
-        className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-        style={{ transform: checked ? "translateX(18px)" : "translateX(2px)" }}
+        className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+        style={{ transform: checked ? "translateX(20px)" : "translateX(0px)" }}
       />
     </button>
   );
 }
 
-function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onExport, userEmail, onLogout }) {
-  const initial = (userEmail || "?").charAt(0).toUpperCase();
+function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onExport, userEmail, displayName, onLogout, onOpenEditProfile }) {
+  const initial = (displayName || userEmail || "?").charAt(0).toUpperCase();
   return (
     <div>
       <div className="flex items-center gap-3 mb-6 mt-2">
@@ -727,11 +731,23 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
         >
           {initial}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate" style={{ color: T.text }}>
-            {userEmail}
+            {displayName || userEmail}
           </p>
+          {displayName && (
+            <p className="text-xs truncate" style={{ color: T.muted }}>
+              {userEmail}
+            </p>
+          )}
         </div>
+        <button
+          onClick={onOpenEditProfile}
+          className="text-xs font-medium px-3 py-1.5 rounded-full shrink-0"
+          style={{ color: palette.primary, backgroundColor: `${palette.primary}14`, border: `1px solid ${palette.primary}30` }}
+        >
+          Editar
+        </button>
       </div>
 
       <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}>
@@ -1032,11 +1048,61 @@ function AddGoalModal({ T, darkMode, onClose, onSave }) {
   );
 }
 
+function EditProfileModal({ T, darkMode, currentName, onClose, onSave }) {
+  const [name, setName] = useState(currentName || "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(name.trim());
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-3xl p-5" style={{ backgroundColor: T.card }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Editar perfil
+          </h2>
+          <button onClick={onClose}>
+            <X size={20} style={{ color: T.muted }} />
+          </button>
+        </div>
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Nome de exibição
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Como você quer ser chamado(a)"
+          autoFocus
+          className="w-full mb-4 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <p className="text-xs mb-4" style={{ color: T.muted }}>
+          Esse nome aparece na saudação da tela inicial e no seu perfil, no lugar do email.
+        </p>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: palette.primary, opacity: saving ? 0.7 : 1 }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Salvar
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Root app
 // ---------------------------------------------------------------------------
 export default function FinanceIAApp() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateProfile } = useAuth();
   const {
     activeWallet,
     categories,
@@ -1061,6 +1127,7 @@ export default function FinanceIAApp() {
   const [addInitialType, setAddInitialType] = useState("expense");
   const [showEditBalance, setShowEditBalance] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
   const [toast, setToast] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -1203,7 +1270,13 @@ export default function FinanceIAApp() {
     showToast("CSV exportado");
   }
 
-  const userLabel = user?.email ? user.email.split("@")[0] : "";
+  const displayName = user?.user_metadata?.full_name?.trim() || "";
+  const userLabel = displayName || (user?.email ? user.email.split("@")[0] : "");
+
+  async function handleSaveProfile(name) {
+    await updateProfile({ full_name: name });
+    showToast("Perfil atualizado");
+  }
 
   if (loading) {
     return (
@@ -1360,7 +1433,9 @@ export default function FinanceIAApp() {
                 setBiometric={setBiometric}
                 onExport={handleExport}
                 userEmail={user?.email}
+                displayName={displayName}
                 onLogout={signOut}
+                onOpenEditProfile={() => setShowEditProfile(true)}
               />
             )}
           </div>
@@ -1417,6 +1492,15 @@ export default function FinanceIAApp() {
           />
         )}
         {showAddGoal && <AddGoalModal T={T} darkMode={darkMode} onClose={() => setShowAddGoal(false)} onSave={handleAddGoal} />}
+        {showEditProfile && (
+          <EditProfileModal
+            T={T}
+            darkMode={darkMode}
+            currentName={displayName}
+            onClose={() => setShowEditProfile(false)}
+            onSave={handleSaveProfile}
+          />
+        )}
 
         {toast && (
           <div

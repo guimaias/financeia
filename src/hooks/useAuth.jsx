@@ -51,6 +51,16 @@ export function AuthProvider({ children }) {
     return { error };
   }
 
+  async function updateProfile(fields) {
+    const { data, error } = await supabase.auth.updateUser({ data: fields });
+    if (!error && data?.user) {
+      // Garante que a UI reflita o nome novo imediatamente, sem esperar
+      // o próximo evento onAuthStateChange.
+      setSession((prev) => (prev ? { ...prev, user: data.user } : prev));
+    }
+    return { error };
+  }
+
   const value = {
     session,
     user: session?.user ?? null,
@@ -61,6 +71,7 @@ export function AuthProvider({ children }) {
     signOut,
     sendPasswordReset,
     updatePassword,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
