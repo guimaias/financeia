@@ -1,6 +1,6 @@
 {
-  "name": "FinanceIA - Gestão Financeira Pessoal",
-  "short_name": "FinanceIA",
+  "name": "Finance - Gestão Financeira Pessoal",
+  "short_name": "Finance",
   "description": "App moderno de gestão financeira pessoal. Controle receitas, despesas e orçamentos com interface limpa e intuitiva.",
   "start_url": "/",
   "scope": "/",
@@ -8,7 +8,10 @@
   "orientation": "portrait-primary",
   "theme_color": "#1F6F5C",
   "background_color": "#F3F5F1",
-  "categories": ["finance", "productivity"],
+  "categories": [
+    "finance",
+    "productivity"
+  ],
   "screenshots": [
     {
       "src": "/icon-192.png",

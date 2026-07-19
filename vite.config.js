@@ -8,8 +8,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'FinanceIA',
-        short_name: 'FinanceIA',
+        name: 'Finance',
+        short_name: 'Finance',
         description: 'Gestão de finanças pessoais com design moderno',
         theme_color: '#1F6F5C',
         background_color: '#F3F5F1',

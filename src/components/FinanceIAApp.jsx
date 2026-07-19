@@ -765,7 +765,7 @@ function ProfileScreen({ T, darkMode, setDarkMode, biometric, setBiometric, onEx
         <Row icon={Download} label="Exportar dados (CSV)" T={T} border onClick={onExport}>
           <ChevronRight size={16} style={{ color: T.muted }} />
         </Row>
-        <Row icon={Info} label="Sobre o FinanceIA" T={T} border>
+        <Row icon={Info} label="Sobre o Finance" T={T} border>
           <ChevronRight size={16} style={{ color: T.muted }} />
         </Row>
       </div>
@@ -1305,7 +1305,7 @@ export default function FinanceIAApp() {
             F
           </div>
           <span className="text-base font-semibold" style={{ fontFamily: "Space Grotesk, sans-serif", color: T.text }}>
-            FinanceIA
+            Finance
           </span>
         </div>
 
@@ -1340,7 +1340,10 @@ export default function FinanceIAApp() {
 
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b shrink-0" style={{ borderColor: T.border, backgroundColor: T.card }}>
+        <div
+          className="flex items-center gap-3 px-4 md:px-8 py-3 border-b shrink-0"
+          style={{ borderColor: T.border, backgroundColor: T.card, paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+        >
           <div className="flex items-center gap-2 md:hidden">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
@@ -1380,7 +1383,7 @@ export default function FinanceIAApp() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 pb-24 md:pb-8">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-2 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-8">
           <div className="max-w-3xl mx-auto w-full">
             {activeTab === "home" && (
               <HomeScreen
@@ -1444,7 +1447,7 @@ export default function FinanceIAApp() {
         {/* Navegação inferior - mobile apenas */}
         <div
           className="md:hidden fixed bottom-0 left-0 right-0 flex items-center justify-around py-2 border-t z-20"
-          style={{ backgroundColor: T.card, borderColor: T.border }}
+          style={{ backgroundColor: T.card, borderColor: T.border, paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
         >
           {TABS.map((tab) => {
             if (tab.key === "add") {

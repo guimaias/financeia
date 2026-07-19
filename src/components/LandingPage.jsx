@@ -44,7 +44,7 @@ const LANDING_CSS = `
   .landing-page a:focus-visible, .landing-page button:focus-visible {outline:2.5px solid var(--primary); outline-offset:3px; border-radius:6px;}
 
   .landing-page /* ================= NAV ================= */
-  header {position:sticky; top:0; z-index:100; background:rgba(243,245,241,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid transparent; transition:border-color .3s ease, box-shadow .3s ease;}
+  header {position:sticky; top:0; z-index:100; background:rgba(243,245,241,0.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid transparent; transition:border-color .3s ease, box-shadow .3s ease; padding-top:env(safe-area-inset-top);}
   .landing-page header.scrolled {border-color:var(--border); box-shadow:0 4px 20px rgba(20,38,31,0.05);}
   .landing-page .nav {display:flex; align-items:center; justify-content:space-between; height:76px;}
   .landing-page .logo {display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:18px;}
@@ -60,7 +60,7 @@ const LANDING_CSS = `
   .landing-page .menu-toggle.open span {background:transparent;}
   .landing-page .menu-toggle.open span::before {transform:translateY(6px) rotate(45deg);}
   .landing-page .menu-toggle.open span::after {transform:translateY(-6px) rotate(-45deg);}
-  .landing-page .mobile-panel {display:none; position:fixed; inset:76px 0 0 0; background:var(--paper); z-index:90; padding:32px 24px; flex-direction:column; gap:24px;}
+  .landing-page .mobile-panel {display:none; position:fixed; inset:calc(76px + env(safe-area-inset-top)) 0 0 0; background:var(--paper); z-index:90; padding:32px 24px; flex-direction:column; gap:24px;}
   .landing-page .mobile-panel.open {display:flex;}
   .landing-page .mobile-panel a {font-family:var(--font-display); font-size:22px; font-weight:600;}@media (max-width:900px){
     .landing-page .nav-links {display:none;}
@@ -263,7 +263,7 @@ const TESTIMONIALS = [
 ];
 
 const FAQS = [
-  { q: "O FinanceIA é realmente gratuito?", a: "Sim. Sem mensalidade, sem plano pago escondido, sem cartão de crédito pra criar conta.", openByDefault: true },
+  { q: "O Finance é realmente gratuito?", a: "Sim. Sem mensalidade, sem plano pago escondido, sem cartão de crédito pra criar conta.", openByDefault: true },
   { q: "Meus dados financeiros ficam seguros?", a: "Sim. A autenticação e o banco de dados rodam sobre PostgreSQL com Row Level Security — uma regra que garante que cada conta só acessa os próprios dados, no nível técnico do banco." },
   { q: "Funciona no Android e no iPhone?", a: "Funciona em qualquer aparelho com um navegador moderno. Você instala direto do navegador, sem precisar de loja de aplicativo." },
   { q: "Preciso de internet o tempo todo?", a: "Não. Você pode registrar gastos offline; tudo sincroniza sozinho assim que a internet voltar." },
@@ -393,7 +393,7 @@ export default function LandingPage() {
       <header className={scrolled ? "scrolled" : ""}>
         <div className="container nav">
           <a href="#top" className="logo">
-            <span className="logo-mark">F</span>FinanceIA
+            <span className="logo-mark">F</span>Finance
           </a>
           <nav className="nav-links">
             <a href="#recursos">Recursos</a>
@@ -860,7 +860,7 @@ export default function LandingPage() {
                     <th />
                     <th>Sem controle</th>
                     <th>Planilha</th>
-                    <th className="hl">FinanceIA</th>
+                    <th className="hl">Finance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -944,7 +944,7 @@ export default function LandingPage() {
         <section id="cta-final">
           <div className="final-cta reveal">
             <h2>Seu eu daqui a 6 meses vai te agradecer.</h2>
-            <p>Leva menos de um minuto pra criar sua conta. O resto o FinanceIA cuida com você.</p>
+            <p>Leva menos de um minuto pra criar sua conta. O resto o Finance cuida com você.</p>
             <a href="#cta-final" className="btn btn-on-dark" onClick={goSignup}>
               Criar minha conta grátis
             </a>
@@ -957,7 +957,7 @@ export default function LandingPage() {
           <div className="foot-top">
             <div>
               <a href="#top" className="logo">
-                <span className="logo-mark">F</span>FinanceIA
+                <span className="logo-mark">F</span>Finance
               </a>
               <p className="foot-tag">Clareza financeira, sem complicação. Um projeto independente, feito com atenção aos detalhes.</p>
             </div>
@@ -978,7 +978,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="foot-bottom">
-            <span>© 2026 FinanceIA. Feito com 💚 no Brasil.</span>
+            <span>© 2026 Finance. Feito com 💚 no Brasil.</span>
             <span>Grátis para sempre — sem letras miúdas.</span>
           </div>
         </div>
