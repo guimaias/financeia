@@ -55,7 +55,7 @@ export default function ResetPasswordScreen() {
               Senha atualizada
             </h1>
             <p className="text-xs" style={{ color: palette.muted }}>
-              Você já pode continuar usando o FinanceIA normalmente.
+              Você já pode continuar usando o Finance normalmente.
             </p>
           </div>
         ) : (

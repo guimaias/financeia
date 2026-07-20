@@ -1290,10 +1290,16 @@ export default function FinanceIAApp() {
 
   return (
     <div
-      className="min-h-screen w-full flex"
+      className="financeia-app-shell w-full flex"
       style={{ backgroundColor: T.bg, opacity: mounted ? 1 : 0, transition: "opacity .4s ease", fontFamily: "Inter, sans-serif" }}
     >
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        .financeia-app-shell {
+          height: 100vh;
+          height: 100dvh;
+        }
+      `}</style>
 
       {/* Sidebar - desktop apenas */}
       <aside className="hidden md:flex md:flex-col md:w-60 md:shrink-0 border-r px-4 py-6" style={{ backgroundColor: T.card, borderColor: T.border }}>

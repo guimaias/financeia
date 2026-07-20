@@ -111,7 +111,7 @@ export default function LoginScreen({ initialMode = "login" }) {
             F
           </div>
           <span className="text-lg font-semibold" style={{ fontFamily: "Space Grotesk, sans-serif", color: palette.ink }}>
-            FinanceIA
+            Finance
           </span>
         </div>
 
