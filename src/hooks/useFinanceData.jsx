@@ -215,7 +215,7 @@ export function useFinanceData(user) {
   async function addToGoal(id, amount) {
     const goal = goals.find((g) => g.id === id);
     if (!goal) return;
-    const nextCurrent = Math.min(goal.target, goal.current + amount);
+    const nextCurrent = Math.min(goal.target, Math.max(0, goal.current + amount));
     const { error: updErr } = await supabase
       .from("goals")
       .update({ current: nextCurrent })
@@ -226,6 +226,24 @@ export function useFinanceData(user) {
       return;
     }
     setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, current: nextCurrent } : g)));
+  }
+
+  async function updateGoal(id, fields) {
+    const { error: updErr } = await supabase.from("goals").update(fields).eq("id", id).eq("user_id", user.id);
+    if (updErr) {
+      setError(updErr);
+      return;
+    }
+    setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...fields } : g)));
+  }
+
+  async function deleteGoal(id) {
+    const { error: delErr } = await supabase.from("goals").delete().eq("id", id).eq("user_id", user.id);
+    if (delErr) {
+      setError(delErr);
+      return;
+    }
+    setGoals((prev) => prev.filter((g) => g.id !== id));
   }
 
   async function updateInitialBalance(value) {
@@ -256,6 +274,8 @@ export function useFinanceData(user) {
     updateCategoryBudget,
     addGoal,
     addToGoal,
+    updateGoal,
+    deleteGoal,
     updateInitialBalance,
   };
 }

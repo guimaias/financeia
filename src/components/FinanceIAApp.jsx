@@ -556,7 +556,18 @@ function TransactionsScreen({ transactions, categoryMap, T, darkMode, onDelete, 
   );
 }
 
-function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, onAddToGoal, selectedMonth, privacy, onOpenAddGoal }) {
+function ReportsScreen({
+  expenseByCategory,
+  T,
+  darkMode,
+  onUpdateBudget,
+  goals,
+  onOpenAddToGoal,
+  onOpenEditGoal,
+  selectedMonth,
+  privacy,
+  onOpenAddGoal,
+}) {
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
 
@@ -662,13 +673,18 @@ function ReportsScreen({ expenseByCategory, T, darkMode, onUpdateBudget, goals, 
                     {g.name}
                   </span>
                 </div>
-                <button
-                  onClick={() => onAddToGoal(g.id)}
-                  className="text-xs px-2 py-1 rounded-lg font-medium"
-                  style={{ backgroundColor: `${palette.gold}22`, color: palette.gold }}
-                >
-                  + R$ 100
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => onOpenAddToGoal(g)}
+                    className="text-xs px-2.5 py-1 rounded-lg font-medium"
+                    style={{ backgroundColor: `${palette.gold}22`, color: palette.gold }}
+                  >
+                    + Adicionar
+                  </button>
+                  <button onClick={() => onOpenEditGoal(g)} className="p-1">
+                    <Pencil size={13} style={{ color: T.muted }} />
+                  </button>
+                </div>
               </div>
               <div className="flex justify-between text-xs mb-1" style={{ color: T.muted }}>
                 <span>
@@ -1048,6 +1064,173 @@ function AddGoalModal({ T, darkMode, onClose, onSave }) {
   );
 }
 
+function AddToGoalModal({ T, darkMode, goal, onClose, onSave }) {
+  const [amount, setAmount] = useState("100");
+  const [saving, setSaving] = useState(false);
+  const canSave = Number(amount) > 0 && !saving;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    await onSave(goal.id, Number(amount));
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-3xl p-5" style={{ backgroundColor: T.card }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Adicionar à meta
+          </h2>
+          <button onClick={onClose}>
+            <X size={20} style={{ color: T.muted }} />
+          </button>
+        </div>
+        <p className="text-xs mb-4" style={{ color: T.muted }}>
+          {goal.name} · {formatBRL(goal.current)} de {formatBRL(goal.target)}
+        </p>
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Valor a adicionar (R$)
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          autoFocus
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-full mb-3 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <div className="flex gap-2 mb-4">
+          {[50, 100, 200, 500].map((v) => (
+            <button
+              key={v}
+              onClick={() => setAmount(String(v))}
+              className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+              style={{ backgroundColor: `${palette.gold}18`, color: palette.gold }}
+            >
+              R$ {v}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={!canSave}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: palette.gold, opacity: canSave ? 1 : 0.5 }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Adicionar
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function EditGoalModal({ T, darkMode, goal, onClose, onSave, onDelete }) {
+  const [name, setName] = useState(goal.name);
+  const [target, setTarget] = useState(String(goal.target));
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canSave = name.trim().length > 0 && Number(target) > 0 && !saving;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    await onSave(goal.id, { name: name.trim(), target: Number(target) });
+    setSaving(false);
+    onClose();
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    await onDelete(goal.id);
+    setDeleting(false);
+    onClose();
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-3xl p-5" style={{ backgroundColor: T.card }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold" style={{ color: T.text }}>
+            Editar meta
+          </h2>
+          <button onClick={onClose}>
+            <X size={20} style={{ color: T.muted }} />
+          </button>
+        </div>
+
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Nome da meta
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          className="w-full mb-3 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+        <label className="text-xs font-medium mb-1 block" style={{ color: T.muted }}>
+          Valor alvo (R$)
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          className="w-full mb-5 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ backgroundColor: darkMode ? "#222222" : "#F1F2EF", color: T.text }}
+        />
+
+        <button
+          onClick={handleSave}
+          disabled={!canSave}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 mb-3"
+          style={{ backgroundColor: palette.primary, opacity: canSave ? 1 : 0.5 }}
+        >
+          {saving && <Loader2 size={15} className="animate-spin" />}
+          Salvar alterações
+        </button>
+
+        {confirmDelete ? (
+          <div className="rounded-xl p-3" style={{ backgroundColor: `${palette.expense}12`, border: `1px solid ${palette.expense}30` }}>
+            <p className="text-xs mb-2.5" style={{ color: palette.expense }}>
+              Excluir &quot;{goal.name}&quot; para sempre? Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 py-2 rounded-lg text-xs font-medium"
+                style={{ color: T.muted, border: `1px solid ${T.border}` }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold text-white flex items-center justify-center gap-1.5"
+                style={{ backgroundColor: palette.expense, opacity: deleting ? 0.7 : 1 }}
+              >
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                Excluir
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} className="w-full py-2.5 rounded-xl text-xs font-medium" style={{ color: palette.expense }}>
+            Excluir meta
+          </button>
+        )}
+      </div>
+    </ModalShell>
+  );
+}
+
 function EditProfileModal({ T, darkMode, currentName, onClose, onSave }) {
   const [name, setName] = useState(currentName || "");
   const [saving, setSaving] = useState(false);
@@ -1116,6 +1299,8 @@ export default function FinanceIAApp() {
     updateCategoryBudget,
     addGoal,
     addToGoal,
+    updateGoal,
+    deleteGoal,
     updateInitialBalance,
   } = useFinanceData(user);
 
@@ -1127,6 +1312,8 @@ export default function FinanceIAApp() {
   const [addInitialType, setAddInitialType] = useState("expense");
   const [showEditBalance, setShowEditBalance] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
+  const [addToGoalTarget, setAddToGoalTarget] = useState(null);
+  const [editGoalTarget, setEditGoalTarget] = useState(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
   const [toast, setToast] = useState(null);
@@ -1214,14 +1401,24 @@ export default function FinanceIAApp() {
     await updateCategoryBudget(categoryId, value);
   }
 
-  async function handleAddToGoal(id) {
-    await addToGoal(id, 100);
-    showToast("R$ 100 adicionados à meta");
+  async function handleAddToGoal(id, amount) {
+    await addToGoal(id, amount);
+    showToast(`${formatBRL(amount)} adicionados à meta`);
   }
 
   async function handleAddGoal(name, target) {
     await addGoal(name, target);
     showToast("Meta criada");
+  }
+
+  async function handleUpdateGoal(id, fields) {
+    await updateGoal(id, fields);
+    showToast("Meta atualizada");
+  }
+
+  async function handleDeleteGoal(id) {
+    await deleteGoal(id);
+    showToast("Meta excluída");
   }
 
   async function handleEditBalance(value) {
@@ -1427,7 +1624,8 @@ export default function FinanceIAApp() {
                 darkMode={darkMode}
                 onUpdateBudget={handleUpdateBudget}
                 goals={goals}
-                onAddToGoal={handleAddToGoal}
+                onOpenAddToGoal={(goal) => setAddToGoalTarget(goal)}
+                onOpenEditGoal={(goal) => setEditGoalTarget(goal)}
                 selectedMonth={selectedMonth}
                 privacy={privacyMode}
                 onOpenAddGoal={() => setShowAddGoal(true)}
@@ -1501,6 +1699,25 @@ export default function FinanceIAApp() {
           />
         )}
         {showAddGoal && <AddGoalModal T={T} darkMode={darkMode} onClose={() => setShowAddGoal(false)} onSave={handleAddGoal} />}
+        {addToGoalTarget && (
+          <AddToGoalModal
+            T={T}
+            darkMode={darkMode}
+            goal={addToGoalTarget}
+            onClose={() => setAddToGoalTarget(null)}
+            onSave={handleAddToGoal}
+          />
+        )}
+        {editGoalTarget && (
+          <EditGoalModal
+            T={T}
+            darkMode={darkMode}
+            goal={editGoalTarget}
+            onClose={() => setEditGoalTarget(null)}
+            onSave={handleUpdateGoal}
+            onDelete={handleDeleteGoal}
+          />
+        )}
         {showEditProfile && (
           <EditProfileModal
             T={T}
